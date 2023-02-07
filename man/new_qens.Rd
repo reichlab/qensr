@@ -2,37 +2,72 @@
 % Please edit documentation in R/qens.R
 \name{new_qens}
 \alias{new_qens}
-\title{Create a qens object}
+\title{Create a qens object representing a quantile ensemble model fit}
 \usage{
 new_qens(
-  param_vec,
-  M,
-  model_names = rep("", M),
-  quantile_levels,
-  quantile_groups,
+  model_id_vars,
+  task_id_vars,
+  tau_var,
+  q_var,
   combine_method,
-  loss_trace = NULL
+  weighted,
+  tau_groups,
+  model_id,
+  tau,
+  parameters,
+  weights,
+  loss_trace
 )
 }
 \arguments{
-\item{param_vec}{numeric vector of "raw" parameter estimates}
+\item{model_id_vars}{\code{character} vector naming columns of \code{predictions} that
+identify prediction models.}
 
-\item{M}{integer number of models}
+\item{task_id_vars}{an optional \code{character} vector naming the columns of
+\code{predictions} that correspond to task id variables. The default is \code{NULL},
+in which case all columns in \code{predictions} other than those specified for
+\verb{model_id_vars, }tau_var\verb{, and }q_var` will be used as task id variables.}
 
-\item{model_names}{name for each model}
+\item{tau_var}{string naming a column of \code{predictions} that
+identifies the probability level of quantile forecasts. The default is
+\code{NULL}, in which case \code{"quantile"} is used if \code{predictions} contains a
+column of that name, or otherwise \code{"output_id"} is used if \code{predictions}
+contains a column of that name; these are common naming conventions in
+infectious disease forecast hubs. If \code{tau_var} is not specified and
+\code{predictions} does not contain columns named \code{"quantile"} or \code{"output_id"},
+an error is thrown.}
 
-\item{combine_method}{string specifying combination method;
-either "convex_mean" or "convex_median"}
+\item{q_var}{string naming a column of \code{predictions} that has values of
+predictive quantiles.}
 
-\item{loss_trace}{numeric vector of loss trace per iteration of estimation}
+\item{combine_method}{string specifying method for ensembling quantiles;
+"mean" or "median"}
+
+\item{weighted}{boolean indicating whether model weighting should be done.
+If \code{FALSE}, all models are given equal weight. If \code{TRUE}, model weights are
+estimated.}
+
+\item{tau_groups}{Vector of group labels for quantiles, having the same
+length as the number of distinct quantile levels in the \code{tau_var} column of
+\code{predictions}. The ensemble weights are shared across any quantile levels
+with the same label. The default specifies that a common set of weights
+should be used across all levels.}
+
+\item{model_id}{data frame of model identifiers corresponding to weights}
 
 \item{tau}{numeric vector of quantile levels}
 
-\item{tau_grps}{specification of quantile groups}
+\item{parameters}{named list of model parameters, for internal use by python
+qens module}
+
+\item{weights}{numeric array of weights, with shape
+(number of quantile levels, number of models)}
+
+\item{loss_trace}{numeric vector of loss trace per iteration of estimation}
 }
 \value{
-qens object
+S3 object with class \verb{<qens>}
 }
 \description{
-Create a qens object
+Create a qens object representing a quantile ensemble model fit
 }

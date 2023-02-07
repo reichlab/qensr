@@ -1,0 +1,178 @@
+---
+title: "`qens`: Quantile Ensembles"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{`qens`: Quantile Ensembles}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(readr)
+library(dplyr)
+library(purrr)
+library(ggplot2)
+
+library(reticulate)
+reticulate::use_python("/usr/local/bin/python3")
+library(qens)
+```
+
+First, we'll load in some sample forecasts and observed target data for weekly incident influenza hospitalizations in the US that are provided by the package. The forecast data were produced by a collection of minor variations on a baseline forecasting model based on a local level or local trend model using different settings for whether the model works with daily or weekly data and whether or not a square root data transformation is applied. The observed target data come from the HHS Protect system for collecting data on admissions to hospitals in the U.S. where the patient has influenza.
+
+```{r}
+forecasts_path <- system.file("extdata/forecast_data", package = "qens")
+models <- list.files(forecasts_path)
+forecasts <- purrr::map_dfr(
+    models,
+    function(model) {
+        model_path <- file.path(forecasts_path, model)
+        model_files <- list.files(model_path, full.names = TRUE)
+        purrr::map_dfr(model_files, readr::read_csv,
+                       col_types = cols(
+                           forecast_date = col_date(format = ""),
+                           target = col_character(),
+                           target_end_date = col_date(format = ""),
+                           location = col_character(),
+                           type = col_character(),
+                           quantile = col_double(),
+                           value = col_double()),
+                       progress = FALSE) %>%
+            dplyr::filter(type == "quantile") %>%
+            dplyr::mutate(model = model)
+    }
+)
+head(forecasts)
+```
+
+We split the component model forecasts into a training set that will be used for estimating model weights, and a set of forecasts at the ``current time", which will be used to create prospective forecasts.
+
+```{r}
+unique(forecasts$forecast_date)
+train_forecasts <- forecasts %>%
+    dplyr::filter(forecast_date < "2022-05-30")
+current_forecasts <- forecasts %>%
+    dplyr::filter(forecast_date == "2022-05-30")
+```
+
+We also load the data that are used as a forecast target.
+
+```{r}
+flu_hosps <-  readr::read_csv(
+    system.file("extdata/target_data/flu_hosps.csv", package = "qens"),
+    col_types = cols(
+        location = col_character(),
+        date = col_date(format = ""),
+        value = col_double()
+    )) %>%
+    dplyr::filter(date >= "2022-02-01", date <= "2022-09-01")
+head(flu_hosps)
+```
+
+We plot the training set forecasts and the forecasts for the current date for the national level only:
+```{r, fig.width=8, fig.height=12}
+plot_forecasts <- function(forecasts, target_data) {
+    plot_forecasts <- forecasts %>%
+        dplyr::filter(location == "US") %>%
+        dplyr::filter(as.character(quantile) %in% c("0.025", "0.5", "0.975")) %>%
+        tidyr::pivot_wider(names_from = quantile, values_from = value)
+    ggplot() +
+        geom_line(
+            mapping = aes(x = target_end_date, y = `0.5`,
+                          group = paste0(model, forecast_date)),
+            color = "cornflowerblue",
+            data = plot_forecasts
+        ) +
+        geom_ribbon(
+            mapping = aes(x = target_end_date, ymin = `0.025`, ymax = `0.975`,
+                          group = paste0(model, forecast_date)),
+            fill = "cornflowerblue",
+            alpha = 0.3,
+            data = plot_forecasts
+        ) +
+        geom_line(
+            mapping = aes(x = date, y = value),
+            data = target_data %>% dplyr::filter(location == "US")
+        ) +
+        facet_wrap( ~ model, ncol = 2) +
+        theme_bw() +
+        xlab("Date") +
+        ylab("Weekly incident flu hospitalizations")
+}
+
+plot_forecasts(forecasts = train_forecasts, target_data = flu_hosps)
+```
+
+We now fit a weighted mean quantile ensemble model, estimating the weights based on the training set forecasts.
+
+```{r}
+qens_fit <- qens(predictions = train_forecasts,
+                 y = flu_hosps %>% dplyr::rename(target_end_date = date),
+                 model_id_vars = "model",
+                 task_id_vars = c("forecast_date", "target_end_date", "location"),
+                 tau_var = "quantile",
+                 q_var = "value",
+                 combine_method = "mean",
+                 weighted = TRUE)
+```
+
+It's a good idea to plot the trace of the loss function during the course of the optimization routine for parameter estimation. This should stabilize around a low value. If it has not stabilized, estimation should be run with more optimization iterations.
+```{r, fig.width=8, fig.height=6}
+plot(qens_fit$loss_trace, type = "l")
+```
+
+We can inspect the component model weights, which are stored in the `weights` entry of the model fit object.
+```{r}
+# the weights object is matrix with one row for each model and
+# one column for each quantile level
+qens_fit$weights
+
+# in this case, the weights were shared across quantile levels.
+# we can match up the weights to models using the `model_id` property
+# of the model fit
+model_weights <- qens_fit$model_id %>%
+    dplyr::mutate(weight = qens_fit$weights[1, ])
+model_weights
+```
+
+We can now obtain predictions for the current time point:
+```{r}
+ensemble_predictions <- predict(qens_fit, current_forecasts, sort = TRUE) %>%
+    dplyr::mutate(model = "weighted mean ensemble")
+ensemble_predictions
+```
+
+In this case, we could have obtained the same predictions directly as a weighted mean of the predictions:
+```{r}
+direct_ensemble_predictions <- current_forecasts %>%
+    dplyr::left_join(model_weights, by = "model") %>%
+    dplyr::group_by(forecast_date, target_end_date, location, quantile) %>%
+    dplyr::summarize(value = weighted.mean(value, w = weight),
+                     .groups = "drop") %>%
+    dplyr::mutate(model = "weighted mean ensemble")
+direct_ensemble_predictions
+```
+
+We confirm here that these predictions agree up to numerical errors (note that the calculations in the python implementation are done in 32 bits and the calculations in R are done in 64 bits, so some mild discrepancy is expected).
+```{r}
+ensemble_predictions %>%
+    dplyr::left_join(direct_ensemble_predictions,
+                     by = c("forecast_date", "target_end_date",
+                            "location", "quantile", "model")) %>%
+    dplyr::mutate(diff = abs(value.x - value.y)) %>%
+    dplyr::pull(diff) %>%
+    max()
+```
+
+We plot these "current date" ensemble forecasts to confirm that they look reasonable:
+
+```{r, fig.width=8, fig.height=6}
+plot_forecasts(forecasts = ensemble_predictions, target_data = flu_hosps)
+```

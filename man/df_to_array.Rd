@@ -5,7 +5,16 @@
 \title{Convert data frames with predictions and observed data to arrays.
 It's OK not to include the data.}
 \usage{
-df_to_array(predictions, y = NULL, model_id_vars, task_id_vars, tau_var, q_var)
+df_to_array(
+  predictions,
+  y = NULL,
+  model_id_vars,
+  task_id_vars,
+  tau_var,
+  q_var,
+  model_id = NULL,
+  tau = NULL
+)
 }
 \arguments{
 \item{predictions}{data frame with training set predictions to use for

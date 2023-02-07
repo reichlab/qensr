@@ -15,8 +15,8 @@ qens(
   q_var = "value",
   combine_method = "mean",
   weighted = FALSE,
-  tau_grps = rep(1, length(unique(predictions[[tau_var]]))),
-  init_method = if (weighted) "xavier" else "equal",
+  tau_groups = rep(1, length(unique(predictions[[tau_var]]))),
+  init_method = NULL,
   optim_method = "adam",
   num_iter = 1000,
   learning_rate = 0.1,
@@ -58,7 +58,7 @@ predictive quantiles.}
 If \code{FALSE}, all models are given equal weight. If \code{TRUE}, model weights are
 estimated.}
 
-\item{tau_grps}{Vector of group labels for quantiles, having the same
+\item{tau_groups}{Vector of group labels for quantiles, having the same
 length as the number of distinct quantile levels in the \code{tau_var} column of
 \code{predictions}. The ensemble weights are shared across any quantile levels
 with the same label. The default specifies that a common set of weights

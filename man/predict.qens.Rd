@@ -2,16 +2,16 @@
 % Please edit documentation in R/qens.R
 \name{predict.qens}
 \alias{predict.qens}
-\title{Predict based on a quantile regression averaging fit}
+\title{Predict based on a quantile ensemble fit}
 \usage{
-\method{predict}{qens}(qens_obj, qfm, sort_quantiles)
+\method{predict}{qens}(qens_obj, predictions, sort_quantiles = TRUE)
 }
 \arguments{
-\item{qfm}{matrix of model forecasts of class QuantileForecastMatrix}
+\item{predictions}{data frame with component model predictions to combine}
 
 \item{sort_quantiles}{logical; if TRUE, the predictive quantiles are sorted
-in order of the quantile level.  Otherwise, the raw predictive quantiles are
-returned.}
+in order of the quantile level.  Otherwise, the raw predictive quantiles
+are returned.}
 
 \item{qens}{object of class qens}
 }
@@ -19,5 +19,5 @@ returned.}
 data frame with ensemble quantile forecasts
 }
 \description{
-Predict based on a quantile regression averaging fit
+Predict based on a quantile ensemble fit
 }
