@@ -13,7 +13,7 @@ install_py_dependencies <- function(method = "auto", conda = "auto") {
         conda = conda,
         pip = TRUE)
     reticulate::py_install(
-        "git+https://github.com/reichlab/qenspy@refactor_api",
+        "git+https://github.com/reichlab/qenspy@v1.0.0",
         method = method,
         conda = conda,
         pip = TRUE,
