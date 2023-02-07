@@ -21,7 +21,11 @@ library(purrr)
 library(ggplot2)
 
 library(reticulate)
+
+# Note: the reticulate command below is specific to Evan's computer.
+# Is there a better/more generic way to set this up?
 reticulate::use_python("/usr/local/bin/python3")
+
 library(qens)
 ```
 
