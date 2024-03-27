@@ -8,7 +8,7 @@
 #' @export
 install_py_dependencies <- function(method = "auto", conda = "auto") {
     reticulate::py_install(
-        c("tensorflow", "tensorflow_probability"),
+        c("tensorflow", "tensorflow_probability", "tf-keras"),
         method = method,
         conda = conda,
         pip = TRUE)
